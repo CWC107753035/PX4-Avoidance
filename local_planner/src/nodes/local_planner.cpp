@@ -9,7 +9,6 @@
 namespace avoidance {
 
 LocalPlanner::LocalPlanner() : star_planner_(new StarPlanner()) {}
-
 LocalPlanner::~LocalPlanner() {}
 
 // update UAV pose
@@ -84,7 +83,6 @@ void LocalPlanner::runPlanner() {
 
 void LocalPlanner::create2DObstacleRepresentation(const bool send_to_fcu) {
   // construct histogram if it is needed
-  // or if it is required by the FCU
   Histogram new_histogram = Histogram(ALPHA_RES);
   to_fcu_histogram_.setZero();
   generateNewHistogram(new_histogram, final_cloud_, position_);
@@ -118,13 +116,13 @@ void LocalPlanner::determineStrategy() {
   cost_image_data_.clear();
   cost_image_data_.resize(3 * GRID_LENGTH_E * GRID_LENGTH_Z, 0);
 
-  create2DObstacleRepresentation(px4_.param_cp_dist > 0.f);
+  create2DObstacleRepresentation(px4_.param_cp_dist > 0.f); //Jeff: will create a histogram map and make an img
 
   // calculate the vehicle projected position on the line between the previous and current goal
   Eigen::Vector2f u_prev_to_goal = (goal_ - prev_goal_).head<2>().normalized();
   Eigen::Vector2f prev_to_pos = (position_ - prev_goal_).head<2>();
   closest_pt_.head<2>() = prev_goal_.head<2>() + (u_prev_to_goal * u_prev_to_goal.dot(prev_to_pos));
-  closest_pt_.z() = goal_.z();
+  closest_pt_.z() = goal_.z(); //Jeff: projection
 
   // if the vehicle is less than the cruise speed away from the line or if prev goal is the same as goal,
   // set the projection point to the goal such that the cost function doesn't pull the vehicle towards the line
@@ -134,8 +132,8 @@ void LocalPlanner::determineStrategy() {
   }
 
   if (!polar_histogram_.isEmpty()) {
-    getCostMatrix(polar_histogram_, goal_, position_, velocity_, cost_params_, smoothing_margin_degrees_, closest_pt_,
-                  max_sensor_range_, min_sensor_range_, cost_matrix_, cost_image_data_);
+    // getCostMatrix(polar_histogram_, goal_, position_, velocity_, cost_params_, smoothing_margin_degrees_, closest_pt_,
+    //               max_sensor_range_, min_sensor_range_, cost_matrix_, cost_image_data_);
 
     star_planner_->setParams(cost_params_);
     star_planner_->setPointcloud(final_cloud_);
@@ -185,7 +183,7 @@ void LocalPlanner::updateObstacleDistanceMsg() {
 
 Eigen::Vector3f LocalPlanner::getPosition() const { return position_; }
 
-const pcl::PointCloud<pcl::PointXYZI>& LocalPlanner::getPointcloud() const { return final_cloud_; }
+const pcl::PointCloud<pcl::PointXYZI>& LocalPlanner::getPointcloud() const { return final_cloud_;}
 
 void LocalPlanner::setDefaultPx4Parameters() {
   px4_.param_mpc_auto_mode = 1;

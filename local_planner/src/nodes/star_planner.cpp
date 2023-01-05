@@ -36,7 +36,7 @@ void StarPlanner::setPointcloud(const pcl::PointCloud<pcl::PointXYZI>& cloud) { 
 void StarPlanner::setClosestPointOnLine(const Eigen::Vector3f& closest_pt) { closest_pt_ = closest_pt; }
 
 float StarPlanner::treeHeuristicFunction(int node_number) const {
-  return (goal_ - tree_[node_number].getPosition()).norm() * tree_heuristic_weight_;
+  return (goal_ - tree_[node_number].getPosition()).norm() * tree_heuristic_weight_ ;
 }
 
 void StarPlanner::buildLookAheadTree() {
@@ -103,7 +103,7 @@ void StarPlanner::buildLookAheadTree() {
         }
       }
     }
-
+    
     closed_set_.push_back(origin);
     tree_[origin].closed_ = true;
 
@@ -120,11 +120,9 @@ void StarPlanner::buildLookAheadTree() {
         }
       }
     }
-
     cost_image_data.clear();
     candidate_vector.clear();
   }
-
   // find best node to follow, taking into account A* completion
   int max_depth = 0;
   int max_depth_index = 0;
@@ -139,18 +137,21 @@ void StarPlanner::buildLookAheadTree() {
 
   // build final tree
   int tree_end = max_depth_index;
+  if (tree_end == 0 && tree_.size()>1){ //modify by jeff
+    ROS_WARN("No path generate, output last one");
+    tree_end = tree_.size()-1;
+  }
   path_node_positions_.clear();
   while (tree_end > 0) {
     path_node_positions_.push_back(tree_[tree_end].getPosition());
     tree_end = tree_[tree_end].origin_;
   }
   path_node_positions_.push_back(tree_[0].getPosition());
-
   ROS_INFO("\033[0;35m[SP]Tree (%lu nodes, %lu path nodes, %lu expanded) calculated in %2.2fms.\033[0m", tree_.size(),
            path_node_positions_.size(), closed_set_.size(),
            static_cast<double>((std::clock() - start_time) / static_cast<double>(CLOCKS_PER_SEC / 1000)));
 
-#ifndef DISABLE_SIMULATION  // For large trees, this could be very slow!
+#ifndef DISABLE_SIMULATION  // For large trees, this could be very slow!  include guard
   for (int j = 0; j < path_node_positions_.size(); j++) {
     ROS_DEBUG("\033[0;35m[SP] node %i : [ %f, %f, %f]\033[0m", j, path_node_positions_[j].x(),
               path_node_positions_[j].y(), path_node_positions_[j].z());

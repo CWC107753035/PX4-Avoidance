@@ -41,7 +41,6 @@ bool TransformBuffer::insertTransform(const std::string& source_frame, const std
     buffer_[getKey(source_frame, target_frame)] = empty_deque;
     iterator = buffer_.find(getKey(source_frame, target_frame));
   }
-
   // check if the given transform is newer than the last buffered one
   if (iterator->second.size() == 0 || iterator->second.back().stamp_ < transform.stamp_) {
     iterator->second.push_back(transform);

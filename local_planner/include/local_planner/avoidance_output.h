@@ -10,7 +10,7 @@ namespace avoidance {
 enum waypoint_choice { hover, tryPath, direct, reachHeight };
 
 struct avoidanceOutput {
-  float cruise_velocity;     // mission cruise velocity
+  float cruise_velocity;     // mission cruise velocity, set by QGC MPC_crusie_horizontal_velocity 
   ros::Time last_path_time;  // finish built time for the VFH+* tree
 
   std::vector<Eigen::Vector3f> path_node_positions;  // array of tree nodes

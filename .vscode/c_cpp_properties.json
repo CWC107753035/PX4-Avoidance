@@ -1,0 +1,32 @@
+{
+  "configurations": [
+    {
+      "browse": {
+        "databaseFilename": "${default}",
+        "limitSymbolsToIncludedHeaders": false
+      },
+      "includePath": [
+        "/opt/ros/noetic/include/**",
+        "/home/jeff/catkin_px4_avoidance/devel/include/**",
+        "/home/jeff/catkin_apriltag/devel/include/**",
+        "/home/jeff/catkin_ws/devel/include/**",
+        "/home/jeff/catkin_apriltag/src/apriltag_ros/apriltag_ros/include/**",
+        "/home/jeff/catkin_px4_avoidance/src/PX4-Avoidance/avoidance/include/**",
+        "/home/jeff/catkin_px4_avoidance/src/PX4-Avoidance/global_planner/include/**",
+        "/home/jeff/catkin_ws/src/mavros/libmavconn/include/**",
+        "/home/jeff/catkin_px4_avoidance/src/PX4-Avoidance/local_planner/include/**",
+        "/home/jeff/catkin_ws/src/mavros/mavros/include/**",
+        "/home/jeff/catkin_ws/src/mavros/mavros_msgs/include/**",
+        "/home/jeff/catkin_px4_avoidance/src/PX4-Avoidance/safe_landing_planner/include/**",
+        "/home/jeff/catkin_ws/src/mavros/test_mavros/include/**",
+        "/usr/include/**"
+      ],
+      "name": "ROS",
+      "intelliSenseMode": "gcc-x64",
+      "compilerPath": "/usr/bin/gcc",
+      "cStandard": "gnu11",
+      "cppStandard": "c++14"
+    }
+  ],
+  "version": 4
+}

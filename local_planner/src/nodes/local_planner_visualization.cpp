@@ -24,11 +24,11 @@ void LocalPlannerVisualization::initializePublishers(ros::NodeHandle& nh) {
   path_actual_pub_ = nh.advertise<visualization_msgs::Marker>("path_actual", 1);
   path_waypoint_pub_ = nh.advertise<visualization_msgs::Marker>("path_waypoint", 1);
   path_adapted_waypoint_pub_ = nh.advertise<visualization_msgs::Marker>("path_adapted_waypoint", 1);
-  current_waypoint_pub_ = nh.advertise<visualization_msgs::Marker>("current_setpoint", 1);
+  //current_waypoint_pub_ = nh.advertise<visualization_msgs::Marker>("current_setpoint", 1); modify by Jeff
   histogram_image_pub_ = nh.advertise<sensor_msgs::Image>("histogram_image", 1);
   cost_image_pub_ = nh.advertise<sensor_msgs::Image>("cost_image", 1);
   closest_point_pub_ = nh.advertise<visualization_msgs::Marker>("closest_point", 1);
-  deg60_point_pub_ = nh.advertise<visualization_msgs::Marker>("deg60_point", 1);
+  //deg60_point_pub_ = nh.advertise<visualization_msgs::Marker>("deg60_point", 1); modify by Jeff
   fov_pub_ = nh.advertise<visualization_msgs::Marker>("fov", 4);
   range_scan_pub_ = nh.advertise<visualization_msgs::Marker>("range_scan", 1);
 }
@@ -162,35 +162,34 @@ void LocalPlannerVisualization::publishRangeScan(const sensor_msgs::LaserScan& s
   range_scan_pub_.publish(m);
 }
 
-void LocalPlannerVisualization::publishOfftrackPoints(Eigen::Vector3f& closest_pt, Eigen::Vector3f& deg60_pt) {
-  visualization_msgs::Marker m;
-
-  m.header.frame_id = "local_origin";
-  m.header.stamp = ros::Time::now();
-  m.type = visualization_msgs::Marker::SPHERE;
-  m.action = visualization_msgs::Marker::ADD;
-  m.scale.x = 0.2;
-  m.scale.y = 0.2;
-  m.scale.z = 0.2;
-  m.color.a = 1.0;
-  m.color.r = 1.0;
-  m.color.g = 0.0;
-  m.color.b = 0.0;
-  m.lifetime = ros::Duration();
-  m.id = 0;
-  m.pose.position.x = closest_pt.x();
-  m.pose.position.y = closest_pt.y();
-  m.pose.position.z = closest_pt.z();
-  closest_point_pub_.publish(m);
-
-  m.color.r = 0.0;
-  m.color.g = 0.0;
-  m.color.b = 1.0;
-  m.pose.position.x = deg60_pt.x();
-  m.pose.position.y = deg60_pt.y();
-  m.pose.position.z = deg60_pt.z();
-  deg60_point_pub_.publish(m);
-}
+// void LocalPlannerVisualization::publishOfftrackPoints(Eigen::Vector3f& closest_pt, Eigen::Vector3f& deg60_pt) {
+//   visualization_msgs::Marker m;
+//   m.header.frame_id = "local_origin";
+//   m.header.stamp = ros::Time::now();
+//   m.type = visualization_msgs::Marker::SPHERE;
+//   m.action = visualization_msgs::Marker::ADD;
+//   m.scale.x = 0.2;
+//   m.scale.y = 0.2;
+//   m.scale.z = 0.2;
+//   m.color.a = 1.0;
+//   m.color.r = 1.0;
+//   m.color.g = 0.0;
+//   m.color.b = 0.0;
+//   m.lifetime = ros::Duration();
+//   m.id = 0;
+//   m.pose.position.x = closest_pt.x();
+//   m.pose.position.y = closest_pt.y();
+//   m.pose.position.z = closest_pt.z();
+//   closest_point_pub_.publish(m);
+//   m.color.r = 0.0;
+//   m.color.g = 0.0;
+//   m.color.b = 1.0;
+//   m.pose.position.x = deg60_pt.x();
+//   m.pose.position.y = deg60_pt.y();
+//   m.pose.position.z = deg60_pt.z();
+//   deg60_point_pub_.publish(m);
+//   modify by Jeff
+// }
 
 void LocalPlannerVisualization::publishTree(const std::vector<TreeNode>& tree, const std::vector<int>& closed_set,
                                             const std::vector<Eigen::Vector3f>& path_node_positions) const {
@@ -446,60 +445,62 @@ void LocalPlannerVisualization::publishPaths(const Eigen::Vector3f& last_positio
 
   path_length_++;
 }
-
-void LocalPlannerVisualization::publishCurrentSetpoint(const geometry_msgs::Twist& wp,
-                                                       const PlannerState& waypoint_type,
-                                                       const Eigen::Vector3f& newest_position) const {
-  visualization_msgs::Marker setpoint;
-  setpoint.header.frame_id = "local_origin";
-  setpoint.header.stamp = ros::Time::now();
-  setpoint.id = 0;
-  setpoint.type = visualization_msgs::Marker::ARROW;
-  setpoint.action = visualization_msgs::Marker::ADD;
-
-  geometry_msgs::Point tip;
-  geometry_msgs::Point newest_pos;
-
-  newest_pos.x = newest_position(0);
-  newest_pos.y = newest_position(1);
-  newest_pos.z = newest_position(2);
-  tip.x = newest_pos.x + wp.linear.x;
-  tip.y = newest_pos.y + wp.linear.y;
-  tip.z = newest_pos.z + wp.linear.z;
-  setpoint.points.push_back(newest_pos);
-  setpoint.points.push_back(tip);
-  setpoint.scale.x = 0.1;
-  setpoint.scale.y = 0.1;
-  setpoint.scale.z = 0.1;
-  setpoint.color.a = 1.0;
-
-  switch (waypoint_type) {
-    case PlannerState::LOITER: {
-      setpoint.color.r = 1.0;
-      setpoint.color.g = 1.0;
-      setpoint.color.b = 0.0;
-      break;
-    }
-    case PlannerState::TRY_PATH: {
-      setpoint.color.r = 0.0;
-      setpoint.color.g = 1.0;
-      setpoint.color.b = 0.0;
-      break;
-    }
-    case PlannerState::DIRECT: {
-      setpoint.color.r = 0.0;
-      setpoint.color.g = 0.0;
-      setpoint.color.b = 1.0;
-      break;
-    }
-    case PlannerState::ALTITUDE_CHANGE: {
-      setpoint.color.r = 1.0;
-      setpoint.color.g = 0.0;
-      setpoint.color.b = 1.0;
-      break;
-    }
-  }
-
-  current_waypoint_pub_.publish(setpoint);
 }
-}
+
+// void LocalPlannerVisualization::publishCurrentSetpoint(const geometry_msgs::Twist& wp,
+//                                                        const PlannerState& waypoint_type,
+//                                                        const Eigen::Vector3f& newest_position) const {
+//   visualization_msgs::Marker setpoint;
+//   setpoint.header.frame_id = "local_origin";
+//   setpoint.header.stamp = ros::Time::now();
+//   setpoint.id = 0;
+//   setpoint.type = visualization_msgs::Marker::ARROW;
+//   setpoint.action = visualization_msgs::Marker::ADD;
+//   geometry_msgs::Point tip;
+//   geometry_msgs::Point newest_pos;
+//   newest_pos.x = newest_position(0);
+//   newest_pos.y = newest_position(1);
+//   newest_pos.z = newest_position(2);
+//   tip.x = newest_pos.x + 0;
+//   tip.y = newest_pos.y + 0;
+//   tip.z = newest_pos.z + 0;
+//   setpoint.scale.x = 0.5;
+//   setpoint.scale.y = 0.5;
+//   setpoint.scale.z = 0.5;
+//   setpoint.color.a = 1.0;
+//   setpoint.pose.orientation.w = 1.0;
+//   setpoint.pose.orientation.w = 0.0;
+//   setpoint.pose.orientation.w = 0.0;
+//   setpoint.pose.orientation.w = 0.0;
+//   switch (waypoint_type) {
+//     case PlannerState::LOITER: {
+//       setpoint.color.r = 1.0;
+//       setpoint.color.g = 1.0;
+//       setpoint.color.b = 0.0;
+//       break;
+//     }
+//     case PlannerState::TRY_PATH: {
+//       setpoint.color.r = 0.0;
+//       setpoint.color.g = 1.0;
+//       setpoint.color.b = 0.0;
+//       break;
+//     }
+//     case PlannerState::DIRECT: {
+//       setpoint.color.r = 0.0;
+//       setpoint.color.g = 0.0;
+//       setpoint.color.b = 1.0;
+//       break;
+//     }
+//     case PlannerState::ALTITUDE_CHANGE: {
+//       setpoint.color.r = 1.0;
+//       setpoint.color.g = 0.0;
+//       setpoint.color.b = 1.0;
+//       break;
+//     }
+//   }
+//   setpoint.points.push_back(newest_pos);
+//   setpoint.points.push_back(tip);
+//   current_waypoint_pub_.publish(setpoint);
+// }
+// modify by Jeff, fix some but don't think will use, cancel.
+// }

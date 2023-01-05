@@ -73,7 +73,7 @@ bool isInWhichFOV(const std::vector<FOV>& fov_vec, const PolarPoint& p_pol, int&
   idx = -1;
   for (int i = 0; i < fov_vec.size(); ++i) {
     if (pointInsideYawFOV(fov_vec[i], p_pol)) {
-      if (retval) {  // if it's been found before, return false!
+      if (retval) {  // if it's been found before, return false!    //won't getin if 1 cam
         idx = -1;
         return false;
       }
@@ -98,13 +98,12 @@ bool isOnEdgeOfFOV(const std::vector<FOV>& fov_vec, const PolarPoint& p_pol, int
       just_outside.z =
           wrapAngleToPlusMinus180(fov_vec[idx].yaw_deg - fov_vec[idx].h_fov_deg / 2.0f - (ALPHA_RES / 2.0f));
     }
-
     retval = !pointInsideYawFOV(fov_vec, just_outside);
     if (!retval) {
       idx = -1;
     }
   }
-  return retval;
+  return retval;    //relate to multi cam, for single cam it won't change result.
 }
 
 float scaleToFOV(const std::vector<FOV>& fov, const PolarPoint& p_pol) {
@@ -113,7 +112,7 @@ float scaleToFOV(const std::vector<FOV>& fov, const PolarPoint& p_pol) {
     float angle_diff_deg = std::abs(fov[i].yaw_deg - p_pol.z);
     angle_diff_deg = std::min(angle_diff_deg, std::abs(360.f - angle_diff_deg));
     angle_diff_deg = std::min(fov[i].h_fov_deg / 2.0f, angle_diff_deg);  // Clamp at h_FOV/2
-    return 1.0f - 2.0f * angle_diff_deg / fov[i].h_fov_deg;
+    return 1.0f - 2.0f * angle_diff_deg / fov[i].h_fov_deg; // speed depends on turning degree
   }
   return pointInsideYawFOV(fov, p_pol) ? 1.f : 0.f;
 }
@@ -156,16 +155,16 @@ PolarPoint cartesianToPolarHistogram(const Eigen::Vector3f& pos, const Eigen::Ve
 PolarPoint cartesianToPolarHistogram(float x, float y, float z, const Eigen::Vector3f& pos) {
   PolarPoint p_pol(0.0f, 0.0f, 0.0f);
   float den = (Eigen::Vector2f(x, y) - pos.topRows<2>()).norm();
-  p_pol.e = std::atan2(z - pos.z(), den) * RAD_TO_DEG;          //(-90.+90)
-  p_pol.z = std::atan2(x - pos.x(), y - pos.y()) * RAD_TO_DEG;  //(-180. +180]
+  p_pol.e = std::atan2(z - pos.z(), den) * RAD_TO_DEG;          //(-90.+90), elevation angle
+  p_pol.z = std::atan2(x - pos.x(), y - pos.y()) * RAD_TO_DEG;  //(-180. +180], azimutg angle
   p_pol.r = sqrt((x - pos.x()) * (x - pos.x()) + (y - pos.y()) * (y - pos.y()) + (z - pos.z()) * (z - pos.z()));
   return p_pol;
 }
 
 PolarPoint cartesianToPolarFCU(const Eigen::Vector3f& pos, const Eigen::Vector3f& origin) {
   PolarPoint p = cartesianToPolarHistogram(pos, origin);
-  p.z = -p.z + 90.0f;
-  p.e = -p.e;
+  p.z = -p.z + 90.0f;    //adjust to normal theta
+  p.e = -p.e;     //don't think this is correnct
   wrapPolar(p);
   return p;
 }
@@ -340,101 +339,90 @@ void fillUnusedTrajectoryPoint(mavros_msgs::PositionTarget& point) {
 // This function is a refactor of the original in the pcl library
 pcl::PointCloud<pcl::PointXYZ> removeNaNAndGetMaxima(pcl::PointCloud<pcl::PointXYZ>& cloud) {
   // Filter out NANs and keep track of outermost points for FOV
-  size_t j = 0;
-  float x_max = -9999.f, y_max = -9999.f, z_max = -9999.f, x_min = 9999.f, y_min = 9999.f, z_min = 9999.f;
-  int i_x_max = -1, i_x_min = -1, i_y_max = -1, i_y_min = -1, i_z_max = -1, i_z_min = -1;
-  for (size_t i = 0; i < cloud.points.size(); ++i) {
-    if (!std::isfinite(cloud.points[i].x) || !std::isfinite(cloud.points[i].y) || !std::isfinite(cloud.points[i].z))
-      continue;
-    cloud.points[j] = cloud.points[i];  // safe, because i is always ahead of j
-
-    if (cloud.points[j].x > x_max) {
-      x_max = cloud.points[j].x;
-      i_x_max = j;
-    }
-
-    if (cloud.points[j].y > y_max) {
-      y_max = cloud.points[j].y;
-      i_y_max = j;
-    }
-
-    if (cloud.points[j].z > z_max) {
-      z_max = cloud.points[j].z;
-      i_z_max = j;
-    }
-
-    if (cloud.points[j].x < x_min) {
-      x_min = cloud.points[j].x;
-      i_x_min = j;
-    }
-
-    if (cloud.points[j].y < y_min) {
-      y_min = cloud.points[j].y;
-      i_y_min = j;
-    }
-
-    if (cloud.points[j].z < z_min) {
-      z_min = cloud.points[j].z;
-      i_z_min = j;
-    }
-
-    j++;
-  }
-  if (j != cloud.points.size()) {
-    // Resize to the correct size
-    cloud.points.resize(j);
-  }
-
-  cloud.height = 1;
-  cloud.width = static_cast<uint32_t>(j);
-
-  // Removing bad points => dense (note: 'dense' doesn't mean 'organized')
-  cloud.is_dense = true;
+  // size_t j = 0;
+  // float x_max = -9999.f, y_max = -9999.f, z_max = -9999.f, x_min = 9999.f, y_min = 9999.f, z_min = 9999.f;
+  // int i_x_max = -1, i_x_min = -1, i_y_max = -1, i_y_min = -1, i_z_max = -1, i_z_min = -1;
+  // for (size_t i = 0; i < cloud.points.size(); ++i) {
+  //   if (!std::isfinite(cloud.points[i].x) || !std::isfinite(cloud.points[i].y) || !std::isfinite(cloud.points[i].z))
+  //     continue;
+  //   cloud.points[j] = cloud.points[i];  // safe, because i is always ahead of j
+  //   if (cloud.points[j].x > x_max) {
+  //     x_max = cloud.points[j].x;
+  //     i_x_max = j;
+  //   }
+  //   if (cloud.points[j].y > y_max) {
+  //     y_max = cloud.points[j].y;
+  //     i_y_max = j;
+  //   }
+  //   if (cloud.points[j].z > z_max) {
+  //     z_max = cloud.points[j].z;
+  //     i_z_max = j;
+  //   }
+  //   if (cloud.points[j].x < x_min) {
+  //     x_min = cloud.points[j].x;
+  //     i_x_min = j;
+  //   }
+  //   if (cloud.points[j].y < y_min) {
+  //     y_min = cloud.points[j].y;
+  //     i_y_min = j;
+  //   }
+  //   if (cloud.points[j].z < z_min) {
+  //     z_min = cloud.points[j].z;
+  //     i_z_min = j;
+  //   }
+  //   j++;
+  // }
+  // if (j != cloud.points.size()) {
+  //   // Resize to the correct size
+  //   cloud.points.resize(j);
+  // }
+  // cloud.height = 1;
+  // cloud.width = static_cast<uint32_t>(j);
+  // // Removing bad points => dense (note: 'dense' doesn't mean 'organized')
+  // cloud.is_dense = true;
   pcl::PointCloud<pcl::PointXYZ> maxima;
-  maxima.header.frame_id = cloud.header.frame_id;
-  if (i_x_max >= 0) maxima.push_back(cloud.points[i_x_max]);
-  if (i_y_max >= 0) maxima.push_back(cloud.points[i_y_max]);
-  if (i_z_max >= 0) maxima.push_back(cloud.points[i_z_max]);
-  if (i_x_min >= 0) maxima.push_back(cloud.points[i_x_min]);
-  if (i_y_min >= 0) maxima.push_back(cloud.points[i_y_min]);
-  if (i_z_min >= 0) maxima.push_back(cloud.points[i_z_min]);
-
+  // maxima.header.frame_id = cloud.header.frame_id;
+  // if (i_x_max >= 0) maxima.push_back(cloud.points[i_x_max]);
+  // if (i_y_max >= 0) maxima.push_back(cloud.points[i_y_max]);
+  // if (i_z_max >= 0) maxima.push_back(cloud.points[i_z_max]);
+  // if (i_x_min >= 0) maxima.push_back(cloud.points[i_x_min]);
+  // if (i_y_min >= 0) maxima.push_back(cloud.points[i_y_min]);
+  // if (i_z_min >= 0) maxima.push_back(cloud.points[i_z_min]);
   return maxima;
 }
 
 void updateFOVFromMaxima(FOV& fov, const pcl::PointCloud<pcl::PointXYZ>& maxima) {
-  float h_min = 9999.f, h_max = -9999.f, v_min = 9999.f, v_max = -9999.f;
-
-  for (auto p : maxima) {
-    PolarPoint p_pol_fcu = cartesianToPolarFCU(p);
-    p_pol_fcu.z += 180.0f;  // move azimuth to [0, 360]
-    p_pol_fcu.e += 90.0f;   // move elevation to [0, 180]
-    h_min = std::min(p_pol_fcu.z, h_min);
-    h_max = std::max(p_pol_fcu.z, h_max);
-    v_min = std::min(p_pol_fcu.e, v_min);
-    v_max = std::max(p_pol_fcu.e, v_max);
-  }
-
-  float h_diff = std::min(h_max - h_min, 360.0f - h_max + h_min);
-  float v_diff = std::min(v_max - v_min, 360.0f - v_max + v_min);
-
-  if (h_diff > fov.h_fov_deg) {
-    fov.h_fov_deg = h_diff;
-
-    // Note: the wrapping here assumes the FOV of one camera is < 180 degrees!
-    if (h_diff >= h_max - h_min) {
-      fov.yaw_deg = wrapAngleToPlusMinus180((h_max + h_min) / 2.0 - 180.0f);  // center of camera in [-180, 180]
-    } else {
-      fov.yaw_deg = wrapAngleToPlusMinus180((h_max + h_min) / 2.0);
-    }
-  }
-
-  // Note: no wrapping in elevation! If the camera sees the zenith or nadir,
-  // we are in trouble anyways! (aka. horizontal FOV = 360 degrees)
-  if (v_diff > fov.v_fov_deg) {
-    fov.v_fov_deg = v_diff;
-    fov.pitch_deg = (v_max + v_min) / 2.0f - 90.0f;
-  }
+  // float h_min = 9999.f, h_max = -9999.f, v_min = 9999.f, v_max = -9999.f;
+  // for (auto p : maxima) {
+  //   PolarPoint p_pol_fcu = cartesianToPolarFCU(p);
+  //   p_pol_fcu.z += 180.0f;  // move azimuth to [0, 360]
+  //   p_pol_fcu.e += 90.0f;   // move elevation to [0, 180]
+  //   h_min = std::min(p_pol_fcu.z, h_min);
+  //   h_max = std::max(p_pol_fcu.z, h_max);
+  //   v_min = std::min(p_pol_fcu.e, v_min);
+  //   v_max = std::max(p_pol_fcu.e, v_max);
+  // }
+  // float h_diff = std::min(h_max - h_min, 360.0f - h_max + h_min);
+  // float v_diff = std::min(v_max - v_min, 360.0f - v_max + v_min);
+  // if (h_diff > fov.h_fov_deg) {
+  //   fov.h_fov_deg = h_diff;
+  //   // Note: the wrapping here assumes the FOV of one camera is < 180 degrees!
+  //   if (h_diff >= h_max - h_min) {
+  //     fov.yaw_deg = wrapAngleToPlusMinus180((h_max + h_min) / 2.0 - 180.0f);  // center of camera in [-180, 180]
+  //   } else {
+  //     fov.yaw_deg = wrapAngleToPlusMinus180((h_max + h_min) / 2.0);
+  //   }
+  // }
+  // // Note: no wrapping in elevation! If the camera sees the zenith or nadir,
+  // // we are in trouble anyways! (aka. horizontal FOV = 360 degrees)
+  // if (v_diff > fov.v_fov_deg) {
+  //   fov.v_fov_deg = v_diff;
+  //   fov.pitch_deg = (v_max + v_min) / 2.0f - 90.0f;
+  // }
+  fov.v_fov_deg = 50;
+  fov.h_fov_deg = 50;
+  fov.pitch_deg = 0;
+  fov.yaw_deg = 0;
 }
 
 Eigen::Quaterniond quaternionFromRPY(const Eigen::Vector3d& rpy) {

@@ -1,3 +1,4 @@
+<!-- -->
 <launch>
     <arg name="pointcloud_topics" default="[/camera/depth/points]"/>
     <arg name="camera_frame_id" default="camera_link"/>
@@ -6,6 +7,7 @@
     <arg name="start_pos_z" default="3.5" />
     <arg name="world_file_name"    default="simple_obstacle" />
     <arg name="frame_id"    default="local_origin" />
+    <!-- <arg name="pointcloud_topics" default="[/camera/depth/points]"/> -->
 
 
     <!-- Global Planner -->

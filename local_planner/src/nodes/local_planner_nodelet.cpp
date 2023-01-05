@@ -127,7 +127,6 @@ void LocalPlannerNodelet::readParams() {
 
   std::vector<std::string> camera_topics;
   nh_private_.getParam(nodelet::Nodelet::getName() + "/pointcloud_topics", camera_topics);
-
   initializeCameraSubscribers(camera_topics);
 
   new_goal_ = true;
@@ -135,6 +134,7 @@ void LocalPlannerNodelet::readParams() {
 
 void LocalPlannerNodelet::initializeCameraSubscribers(std::vector<std::string>& camera_topics) {
   cameras_.resize(camera_topics.size());
+  //jeff:save camera info depends number of cameras 
 
   for (size_t i = 0; i < camera_topics.size(); i++) {
     cameras_[i].camera_mutex_.reset(new std::mutex);
@@ -280,17 +280,31 @@ void LocalPlannerNodelet::setSystemStatus(MAV_STATE state) { avoidance_node_->se
 
 MAV_STATE LocalPlannerNodelet::getSystemStatus() { return avoidance_node_->getSystemStatus(); }
 
+bool LocalPlannerNodelet::determinedFrontSpace(const LocalPlanner& planner,Eigen::Vector3f nextWayPoint){
+// if newest_position front has pointcloud stop
+    for (const auto& xyz : planner.getPointcloud()){
+        if (xyz.x - nextWayPoint[0] < 0.3 && xyz.x - nextWayPoint[0] > -0.3 && 
+            xyz.y - nextWayPoint[1] < 0.3 && xyz.y - nextWayPoint[1] > -0.3 &&
+            xyz.z - nextWayPoint[2] < 0.2 && xyz.z - nextWayPoint[2] > -0.2 ){
+            return false;
+        }
+    }
+    return true;
+}
+// modify by Jeff, A Naive Check
+
 void LocalPlannerNodelet::calculateWaypoints(bool hover) {
   bool is_airborne = armed_ && (nav_state_ != NavigationState::none);
 
   wp_generator_->updateState(newest_position_, newest_orientation_, goal_position_, prev_goal_position_, velocity_,
                              hover, is_airborne, nav_state_, is_land_waypoint_, is_takeoff_waypoint_,
-                             desired_velocity_);
+                             desired_velocity_, goal_orientation_);
   waypointResult result = wp_generator_->getWaypoints();
 
-  Eigen::Vector3f closest_pt = Eigen::Vector3f(NAN, NAN, NAN);
-  Eigen::Vector3f deg60_pt = Eigen::Vector3f(NAN, NAN, NAN);
-  wp_generator_->getOfftrackPointsForVisualization(closest_pt, deg60_pt);
+  // Eigen::Vector3f closest_pt = Eigen::Vector3f(NAN, NAN, NAN);
+  // Eigen::Vector3f deg60_pt = Eigen::Vector3f(NAN, NAN, NAN);
+  // wp_generator_->getOfftrackPointsForVisualization(closest_pt, deg60_pt);
+  // modify by Jeff cancel empty publisher
 
   last_waypoint_position_ = newest_waypoint_position_;
   newest_waypoint_position_ = result.smoothed_goto_position;
@@ -301,18 +315,37 @@ void LocalPlannerNodelet::calculateWaypoints(bool hover) {
   visualizer_.visualizeWaypoints(result.goto_position, result.adapted_goto_position, result.smoothed_goto_position);
   visualizer_.publishPaths(last_position_, newest_position_, last_waypoint_position_, newest_waypoint_position_,
                            last_adapted_waypoint_position_, newest_adapted_waypoint_position_);
-  visualizer_.publishCurrentSetpoint(toTwist(result.linear_velocity_wp, result.angular_velocity_wp),
-                                     result.waypoint_type, newest_position_);
+  // visualizer_.publishCurrentSetpoint(toTwist(result.linear_velocity_wp, result.angular_velocity_wp),
+  //                                    result.waypoint_type, newest_position_); modify by Jeff, don't think will use.
 
-  visualizer_.publishOfftrackPoints(closest_pt, deg60_pt);
+  //visualizer_.publishOfftrackPoints(closest_pt, deg60_pt);
+  //modify by Jeff, cancel empty publisher
 
   // send waypoints to mavros
-  mavros_msgs::Trajectory obst_free_path = {};
-  transformToTrajectory(obst_free_path, toPoseStamped(result.position_wp, result.orientation_wp),
-                        toTwist(result.linear_velocity_wp, result.angular_velocity_wp));
-  mavros_pos_setpoint_pub_.publish(toPoseStamped(result.position_wp, result.orientation_wp));
-
-  mavros_obstacle_free_path_pub_.publish(obst_free_path);
+  //mavros_msgs::Trajectory obst_free_path = {};
+  if (LocalPlannerNodelet::determinedFrontSpace(*(local_planner_.get()),result.position_wp)){
+    // transformToTrajectory(obst_free_path, toPoseStamped(result.position_wp, result.orientation_wp),
+    //   toTwist(result.linear_velocity_wp, result.angular_velocity_wp));
+    mavros_pos_setpoint_pub_.publish(toPoseStamped(result.position_wp, result.orientation_wp));
+  }
+  else{
+    
+    ROS_WARN("obstacle ahead, HORVERING");
+    Eigen::Vector3f hover_wp;
+    hover_wp[0] = newest_position_[0];
+    hover_wp[1] = newest_position_[1];
+    hover_wp[2] = newest_position_[2]+0.3;
+    
+    // transformToTrajectory(obst_free_path, toPoseStamped(hover_wp, result.orientation_wp),
+    //       toTwist(Eigen::Vector3f::Zero(), result.angular_velocity_wp));
+    last_waypoint_position_ = hover_wp;
+    last_adapted_waypoint_position_ = hover_wp;
+    newest_waypoint_position_ = hover_wp;
+    newest_adapted_waypoint_position_ = hover_wp;
+    
+    mavros_pos_setpoint_pub_.publish(toPoseStamped(hover_wp, result.orientation_wp)); 
+  }
+  //mavros_obstacle_free_path_pub_.publish(obst_free_path);
 }
 
 void LocalPlannerNodelet::clickedPointCallback(const geometry_msgs::PointStamped& msg) {
@@ -325,6 +358,7 @@ void LocalPlannerNodelet::clickedGoalCallback(const geometry_msgs::PoseStamped& 
   goal_position_ = toEigen(msg.pose.position);
   /* Selecting the goal from Rviz sets x and y. Get the z coordinate set in
    * the launch file */
+  goal_orientation_ = toEigen(msg.pose.orientation);    //modify by jeff
   goal_position_.z() = local_planner_->getGoal().z();
 }
 
@@ -373,7 +407,6 @@ void LocalPlannerNodelet::transformBufferThread() {
       std::lock_guard<std::mutex> guard(buffered_transforms_mutex_);
       for (auto const& frame_pair : buffered_transforms_) {
         tf::StampedTransform transform;
-
         if (tf_listener_->canTransform(frame_pair.second, frame_pair.first, ros::Time(0))) {
           try {
             tf_listener_->lookupTransform(frame_pair.second, frame_pair.first, ros::Time(0), transform);
@@ -441,14 +474,14 @@ void LocalPlannerNodelet::dynamicReconfigureCallback(avoidance::LocalPlannerNode
 
 void LocalPlannerNodelet::publishLaserScan() const {
   // inverted logic to make sure values like NAN default to sending the message
-  if (!(local_planner_->px4_.param_cp_dist < 0)) {
+  
     sensor_msgs::LaserScan distance_data_to_fcu;
     local_planner_->getObstacleDistanceData(distance_data_to_fcu);
 
     // only send message if planner had a chance to fill it with valid data
     if (distance_data_to_fcu.angle_increment > 0.f) {
       mavros_obstacle_distance_pub_.publish(distance_data_to_fcu);
-    }
+    
   }
 }
 
@@ -470,7 +503,8 @@ void LocalPlannerNodelet::threadFunction() {
 
       visualizer_.visualizePlannerData(*(local_planner_.get()), newest_waypoint_position_,
                                        newest_adapted_waypoint_position_, newest_position_, newest_orientation_);
-      publishLaserScan();
+      //publishLaserScan();
+      //Jeff: think it's empty publisher, cancel.
 
       std::lock_guard<std::mutex> lock(waypoints_mutex_);
       wp_generator_->setPlannerInfo(local_planner_->getAvoidanceOutput());
@@ -501,7 +535,6 @@ void LocalPlannerNodelet::pointCloudTransformThread(int index) {
       if (cameras_[index].received_) {
         tf::StampedTransform cloud_transform;
         tf::StampedTransform fcu_transform;
-
         if (tf_buffer_.getTransform(cameras_[index].untransformed_cloud_.header.frame_id, "local_origin",
                                     pcl_conversions::fromPCL(cameras_[index].untransformed_cloud_.header.stamp),
                                     cloud_transform) &&
@@ -510,9 +543,8 @@ void LocalPlannerNodelet::pointCloudTransformThread(int index) {
                                     fcu_transform)) {
           // remove nan padding and compute fov
           pcl::PointCloud<pcl::PointXYZ> maxima = removeNaNAndGetMaxima(cameras_[index].untransformed_cloud_);
-
           // update point cloud FOV
-          pcl_ros::transformPointCloud(maxima, maxima, fcu_transform);
+          //pcl_ros::transformPointCloud(maxima, maxima, fcu_transform);   //transform the maxima according to fcu
           updateFOVFromMaxima(cameras_[index].fov_fcu_frame_, maxima);
 
           // transform cloud to local_origin frame

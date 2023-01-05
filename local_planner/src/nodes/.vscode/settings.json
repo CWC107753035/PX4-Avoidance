@@ -1,0 +1,8 @@
+{
+    "python.autoComplete.extraPaths": [
+        "/home/jeff/catkin_px4_avoidance/devel/lib/python3/dist-packages",
+        "/home/jeff/catkin_apriltag/devel/lib/python3/dist-packages",
+        "/home/jeff/catkin_ws/devel/lib/python3/dist-packages",
+        "/opt/ros/noetic/lib/python3/dist-packages"
+    ]
+}

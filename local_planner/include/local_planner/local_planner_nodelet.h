@@ -222,6 +222,7 @@ class LocalPlannerNodelet : public nodelet::Nodelet {
   Eigen::Vector3f velocity_;
   Eigen::Vector3f desired_velocity_;
   Eigen::Vector3f goal_position_;
+  Eigen::Quaternionf goal_orientation_;   //modify by jeff
   Eigen::Vector3f prev_goal_position_;
 
   NavigationState nav_state_ = NavigationState::none;
@@ -311,12 +312,21 @@ class LocalPlannerNodelet : public nodelet::Nodelet {
   * @brief     callaback for clicking cells in the polar histogram
   * @param[in] msg, vehicle position and orientation in ENU frame
   **/
+
   void clickedPointCallback(const geometry_msgs::PointStamped& msg);
   /**
   * @brief     callaback for selecting the goal by cliking on the position in
   *the Rviz visualization of the world
   * @param[in] msg, goal position
   **/
+
+  bool determinedFrontSpace (const LocalPlanner& planner, Eigen::Vector3f nextWayPoint);
+  /**
+   * @brief determine if front space is free togo 
+   * modify by Jeff (testing)
+   * @param[in] msg, pointcloud
+   **/
+
   void clickedGoalCallback(const geometry_msgs::PoseStamped& msg);
   /**
   * @brief     callaback

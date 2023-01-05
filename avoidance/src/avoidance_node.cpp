@@ -23,9 +23,9 @@ void AvoidanceNode::init() {
   mission_sub_ = nh_.subscribe("mavros/mission/waypoints", 1, &AvoidanceNode::missionCallback, this);
   get_px4_param_client_ = nh_.serviceClient<mavros_msgs::ParamGet>("mavros/param/get");
 
-  ros::TimerOptions cmdlooptimer_options(ros::Duration(cmdloop_dt_),
-                                         boost::bind(&AvoidanceNode::cmdLoopCallback, this, _1), &cmdloop_queue_);
-  cmdloop_timer_ = nh_.createTimer(cmdlooptimer_options);
+  // ros::TimerOptions cmdlooptimer_options(ros::Duration(cmdloop_dt_),
+  //                                        boost::bind(&AvoidanceNode::cmdLoopCallback, this, _1), &cmdloop_queue_);
+  // cmdloop_timer_ = nh_.createTimer(cmdlooptimer_options);
 
   ros::TimerOptions statuslooptimer_options(
       ros::Duration(statusloop_dt_), boost::bind(&AvoidanceNode::statusLoopCallback, this, _1), &statusloop_queue_);
@@ -33,8 +33,9 @@ void AvoidanceNode::init() {
 
   setSystemStatus(MAV_STATE::MAV_STATE_BOOT);
 
-  cmdloop_spinner_.reset(new ros::AsyncSpinner(1, &cmdloop_queue_));
-  cmdloop_spinner_->start();
+  // cmdloop_spinner_.reset(new ros::AsyncSpinner(1, &cmdloop_queue_));
+  // cmdloop_spinner_->start();
+  // modify by Jeff,call A EMPTY function for what.......???????
   statusloop_spinner_.reset(new ros::AsyncSpinner(1, &statusloop_queue_));
   statusloop_spinner_->start();
 

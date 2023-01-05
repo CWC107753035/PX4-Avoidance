@@ -5,7 +5,7 @@
 
 #include <ros/param.h>
 
-#define normXY() topRows<2>().norm()
+#define normXY() topRows<2>().norm() //square and sqrt
 
 namespace avoidance {
 
@@ -227,7 +227,7 @@ void WaypointGenerator::updateState(const Eigen::Vector3f& act_pose, const Eigen
                                     const Eigen::Vector3f& goal, const Eigen::Vector3f& prev_goal,
                                     const Eigen::Vector3f& vel, bool stay, bool is_airborne,
                                     const NavigationState& nav_state, const bool is_land_waypoint,
-                                    const bool is_takeoff_waypoint, const Eigen::Vector3f& desired_vel) {
+                                    const bool is_takeoff_waypoint, const Eigen::Vector3f& desired_vel,const Eigen::Quaternionf& goal_orientation) {
   std::lock_guard<std::mutex> lock(running_mutex_);
   position_ = act_pose;
   velocity_ = vel;
@@ -240,6 +240,7 @@ void WaypointGenerator::updateState(const Eigen::Vector3f& act_pose, const Eigen
   is_takeoff_waypoint_ = is_takeoff_waypoint;
   desired_vel_ = desired_vel;
   loiter_ = stay;
+  goal_orientation_ = goal_orientation;
 
   is_airborne_ = is_airborne;
 
@@ -260,12 +261,13 @@ void WaypointGenerator::updateState(const Eigen::Vector3f& act_pose, const Eigen
   }
 }
 
-void WaypointGenerator::transformPositionToVelocityWaypoint() {
-  output_.linear_velocity_wp = output_.position_wp - position_;
-  output_.angular_velocity_wp.x() = 0.0f;
-  output_.angular_velocity_wp.y() = 0.0f;
-  output_.angular_velocity_wp.z() = getAngularVelocity(setpoint_yaw_rad_, curr_yaw_rad_);
-}
+// void WaypointGenerator::transformPositionToVelocityWaypoint() {
+//   output_.linear_velocity_wp = output_.position_wp - position_;
+//   output_.angular_velocity_wp.x() = 0.0f;
+//   output_.angular_velocity_wp.y() = 0.0f;
+//   output_.angular_velocity_wp.z() = getAngularVelocity(setpoint_yaw_rad_, curr_yaw_rad_);
+//   modify by Jeff 
+// }
 
 void WaypointGenerator::smoothWaypoint(float dt) {
   // If the smoothing speed is set to zero, dont smooth, aka use adapted
@@ -282,7 +284,7 @@ void WaypointGenerator::smoothWaypoint(float dt) {
   const Eigen::Vector3f desired_location = output_.adapted_goto_position;
   // Prevent overshoot when drone is close to goal
   const Eigen::Vector3f desired_velocity =
-      (desired_location - goal_).norm() < 0.1 ? Eigen::Vector3f::Zero() : velocity_;
+      (desired_location - goal_).norm() < 0.1 ? Eigen::Vector3f::Zero() : velocity_;   //Jeff : (error - last error)/dt = velocity
 
   Eigen::Vector3f location_diff = desired_location - smoothed_goto_location_;
   if (!location_diff.allFinite()) {
@@ -294,13 +296,12 @@ void WaypointGenerator::smoothWaypoint(float dt) {
     velocity_diff = Eigen::Vector3f::Zero();
   }
 
-  const Eigen::Vector3f p = location_diff.array() * P_constant;
-  const Eigen::Vector3f d = velocity_diff.array() * D_constant;
+  const Eigen::Vector3f p = location_diff.array() * P_constant; 
+  const Eigen::Vector3f d = velocity_diff.array() * D_constant;  
 
   smoothed_goto_location_velocity_ += (p + d) * dt;
   smoothed_goto_location_ += smoothed_goto_location_velocity_ * dt;
   output_.smoothed_goto_position = smoothed_goto_location_;
-
   ROS_DEBUG("[WG] Smoothed GoTo location: %f, %f, %f, with dt=%f", output_.smoothed_goto_position.x(),
             output_.smoothed_goto_position.y(), output_.smoothed_goto_position.z(), dt);
 }
@@ -311,9 +312,9 @@ void WaypointGenerator::nextSmoothYaw(float dt) {
 
   float desired_setpoint_yaw_rad =
       (position_ - output_.goto_position).normXY() > 0.1f ? nextYaw(position_, output_.goto_position) : curr_yaw_rad_;
-
+  
   if (getState() == PlannerState::ALTITUDE_CHANGE) {
-    desired_setpoint_yaw_rad = yaw_reach_height_rad_;
+    desired_setpoint_yaw_rad = yaw_reach_height_rad_; //why bother use curr_yaw_rad_??
   }
 
   // If smoothing is disabled, set yaw to face goal directly
@@ -328,12 +329,11 @@ void WaypointGenerator::nextSmoothYaw(float dt) {
   const float desired_yaw_velocity = 0.0f;
 
   float yaw_diff = wrapAngleToPlusMinusPI(
-      std::isfinite(desired_setpoint_yaw_rad) ? desired_setpoint_yaw_rad - setpoint_yaw_rad_ : 0.0f);
+      std::isfinite(desired_setpoint_yaw_rad) ? desired_setpoint_yaw_rad - setpoint_yaw_rad_ : 0.0f); //if > pi turn left.
+  const float p = yaw_diff * P_constant_xy; //classic p controller
+  const float d = (desired_yaw_velocity - setpoint_yaw_velocity_) * D_constant_xy; //AKA. (now_yawdiff - prev_yawdiff)/dt => velocity in dt
 
-  const float p = yaw_diff * P_constant_xy;
-  const float d = (desired_yaw_velocity - setpoint_yaw_velocity_) * D_constant_xy;
-
-  setpoint_yaw_velocity_ += (p + d) * dt;
+  setpoint_yaw_velocity_ += (p + d) * dt;     //Still try to figure it out why * dt
   setpoint_yaw_rad_ += setpoint_yaw_velocity_ * dt;
   setpoint_yaw_rad_ = wrapAngleToPlusMinusPI(setpoint_yaw_rad_);
 }
@@ -360,7 +360,12 @@ void WaypointGenerator::adaptSpeed(float dt) {
     if (!std::isfinite(heading_at_goal_rad_)) {
       heading_at_goal_rad_ = curr_yaw_rad_;
     }
-    setpoint_yaw_rad_ = heading_at_goal_rad_;
+    if (!isAltitudeChange()){
+      setpoint_yaw_rad_ = DEG_TO_RAD* getYawFromQuaternion(goal_orientation_);
+    }
+    else{
+      setpoint_yaw_rad_ = curr_yaw_rad_;
+    }
   } else {
     // Scale the speed by a factor that is 0 if the waypoint is outside the FOV
     if (getState() != PlannerState::ALTITUDE_CHANGE) {
@@ -368,18 +373,18 @@ void WaypointGenerator::adaptSpeed(float dt) {
       p_pol_fcu.e -= curr_pitch_deg_;
       p_pol_fcu.z -= RAD_TO_DEG * curr_yaw_rad_;
       wrapPolar(p_pol_fcu);
-      speed_ *= scaleToFOV(fov_fcu_frame_, p_pol_fcu);
+      speed_ *= scaleToFOV(fov_fcu_frame_, p_pol_fcu); //fov_fcu_frame, fov at that frame
+      //speed * const(sacleToFOV,between[0,1])
     }
     heading_at_goal_rad_ = NAN;
   }
-
+  //alpha ~0.1 default in laptop
   speed_ = alpha * speed_ + (1.f - alpha) * last_speed;
   speed_ = std::min(speed_, goal_dist);
 
-  // Scale the pose_to_wp by the speed
   Eigen::Vector3f pose_to_wp = output_.goto_position - position_;
   if (pose_to_wp.norm() > 0.1f) pose_to_wp.normalize();
-  pose_to_wp *= speed_;
+  pose_to_wp *= speed_; //apply adapt speed
 
   output_.adapted_goto_position = position_ + pose_to_wp;
 
@@ -403,9 +408,10 @@ void WaypointGenerator::getPathMsg() {
     smoothWaypoint(dt);
   }
 
-  ROS_INFO("[WG] Final waypoint: [%f %f %f]. %f %f %f \n", output_.smoothed_goto_position.x(),
+  ROS_DEBUG("[WG] Final waypoint: [%f %f %f]. %f %f %f \n", output_.smoothed_goto_position.x(),
            output_.smoothed_goto_position.y(), output_.smoothed_goto_position.z(), output_.linear_velocity_wp.x(),
            output_.linear_velocity_wp.y(), output_.linear_velocity_wp.z());
+           //velocity is NaN, maybe we can bypass ? jeff
   createPoseMsg(output_.position_wp, output_.orientation_wp, output_.smoothed_goto_position, setpoint_yaw_rad_);
 }
 
@@ -457,11 +463,12 @@ void WaypointGenerator::setPlannerInfo(const avoidanceOutput& input) {
   planner_info_ = input;
 }
 
-void WaypointGenerator::getOfftrackPointsForVisualization(Eigen::Vector3f& closest_pt, Eigen::Vector3f& deg60_pt) {
-  std::lock_guard<std::mutex> lock(running_mutex_);
-  closest_pt.x() = closest_pt_.x();
-  closest_pt.y() = closest_pt_.y();
-  closest_pt.z() = goal_.z();
-  deg60_pt = tmp_goal_;
-}
+// void WaypointGenerator::getOfftrackPointsForVisualization(Eigen::Vector3f& closest_pt, Eigen::Vector3f& deg60_pt) {
+//   std::lock_guard<std::mutex> lock(running_mutex_);
+//   closest_pt.x() = closest_pt_.x();
+//   closest_pt.y() = closest_pt_.y();
+//   closest_pt.z() = goal_.z();
+//   deg60_pt = tmp_goal_;
+//   modify bt Jeff
+// }
 }

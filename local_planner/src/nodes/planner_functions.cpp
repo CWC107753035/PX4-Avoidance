@@ -14,7 +14,7 @@ void processPointcloud(pcl::PointCloud<pcl::PointXYZI>& final_cloud,
                        float yaw_fcu_frame_deg, float pitch_fcu_frame_deg, const Eigen::Vector3f& position,
                        float min_sensor_range, float max_sensor_range, float max_age, float elapsed_s,
                        int min_num_points_per_cell) {
-  const int SCALE_FACTOR = 3;
+  const int SCALE_FACTOR = 3;               //Jeff: determined density of pointcloud
   pcl::PointCloud<pcl::PointXYZI> old_cloud;
   std::swap(final_cloud, old_cloud);
   final_cloud.points.clear();
@@ -57,7 +57,7 @@ void processPointcloud(pcl::PointCloud<pcl::PointXYZI>& final_cloud,
       wrapPolar(p_pol_fcu);
       Eigen::Vector2i p_ind = polarToHistogramIndex(p_pol, ALPHA_RES / SCALE_FACTOR);
 
-      // only remember point if it's in a cell not previously populated by complete_cloud, as well as outside FOV and
+      // Jeff: only remember point if it's in a cell not previously populated by complete_cloud, as well as outside FOV and
       // 'young' enough
       if (histogram_points_counter(p_ind.y(), p_ind.x()) < min_num_points_per_cell && xyzi.intensity < max_age &&
           !pointInsideFOV(fov, p_pol_fcu)) {
@@ -153,6 +153,7 @@ void getCostMatrix(const Histogram& histogram, const Eigen::Vector3f& goal, cons
       if (histogram.get_dist(tmp_index.y(), tmp_index.x()) > min_sensor_range &&
           histogram.get_dist(tmp_index.y(), tmp_index.x()) < max_sensor_range) {
         is_obstacle_facing_goal = (is_obstacle_facing_goal || true);
+        break;    //Jeff
       }
     }
   }
@@ -162,8 +163,7 @@ void getCostMatrix(const Histogram& histogram, const Eigen::Vector3f& goal, cons
     // determine how many bins at this elevation angle would be equivalent to
     // a single bin at horizontal, then work in steps of that size
     const float bin_width = std::cos(histogramIndexToPolar(e_index, 0, ALPHA_RES, 1).e * DEG_TO_RAD);
-    const int step_size = static_cast<int>(std::round(1 / bin_width));
-
+    const int step_size = static_cast<int>(std::round(1 / bin_width)); //Jeff: closer to polar: big bin_width smaller step_size
     for (int z_index = 0; z_index < GRID_LENGTH_Z; z_index += step_size) {
       float obstacle_distance = histogram.get_dist(e_index, z_index);
       PolarPoint p_pol = histogramIndexToPolar(e_index, z_index, ALPHA_RES, 1.0f);  // unit vector of current direction
@@ -172,6 +172,7 @@ void getCostMatrix(const Histogram& histogram, const Eigen::Vector3f& goal, cons
       cost_matrix(e_index, z_index) = costs.second;
       distance_matrix(e_index, z_index) = costs.first;
     }
+
     if (step_size > 1) {
       // horizontally interpolate all of the un-calculated values
       int last_index = 0;
@@ -378,12 +379,12 @@ bool getSetpointFromPath(const std::vector<Eigen::Vector3f>& path, const ros::Ti
 
   // step through the path until the point where we should be if we had traveled perfectly with velocity along it
   Eigen::Vector3f path_segment = path[i - 3] - path[i - 2];
-  float distance_left = (current_time - path_generation_time).toSec() * velocity;
-  setpoint = path[i - 2] + (distance_left / path_segment.norm()) * path_segment;
+  float distance_left = (current_time - path_generation_time).toSec() * velocity; //distance during each round jeff
+  setpoint = path[i - 2] + (distance_left / path_segment.norm()) * path_segment; //path_segment.norm() = tree_node_distance jeff
   for (i = path.size() - 3; i > 0 && distance_left > path_segment.norm(); --i) {
     distance_left -= path_segment.norm();
     path_segment = path[i - 1] - path[i];
-    setpoint = path[i] + (distance_left / path_segment.norm()) * path_segment;
+    setpoint = path[i] + (distance_left / path_segment.norm()) * path_segment; //maybe cause the collision?jeff
   }
   // If we excited because we're past the last node of the path, the path is no longer valid!
   return distance_left < path_segment.norm();
