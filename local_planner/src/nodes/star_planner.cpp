@@ -55,7 +55,6 @@ void StarPlanner::buildLookAheadTree() {
   // insert first node
   tree_.push_back(TreeNode(0, position_, velocity_));
   tree_.back().setCosts(treeHeuristicFunction(0), treeHeuristicFunction(0));
-
   int origin = 0;
   for (int n = 0; n < n_expanded_nodes_ && is_expanded_node; n++) {
     Eigen::Vector3f origin_position = tree_[origin].getPosition();
