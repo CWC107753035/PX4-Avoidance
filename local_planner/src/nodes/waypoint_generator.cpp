@@ -375,15 +375,17 @@ void WaypointGenerator::adaptSpeed(float dt) {
       p_pol_fcu.z -= RAD_TO_DEG * curr_yaw_rad_;
       wrapPolar(p_pol_fcu);
       speed_ *= scaleToFOV(fov_fcu_frame_, p_pol_fcu); //fov_fcu_frame, fov at that frame
+      bool obastcale = false;
       for (auto xyz:pointcloud_){
-        if (abs(xyz.x - output_.goto_position[0])<0.3 || abs(xyz.y - output_.goto_position[1])<0.3){
-          ROS_WARN("obstacle near path, stop");
-          speed_ *= 0.3;
-          std::cout << abs(xyz.x - output_.goto_position[0]);
-          std::cout << abs(xyz.y - output_.goto_position[1])<<std::endl;          
-          break;
+        if (abs(xyz.x - output_.goto_position[0])<1 && abs(xyz.y - output_.goto_position[1])<1){
+          obastcale = true;        
+          if (abs(xyz.x - output_.goto_position[0])<0.5 && abs(xyz.y - output_.goto_position[1])<0.5){
+            speed_ *= 0;
+            break;
+          }
         }
       }
+      if (obastcale == true){speed_*=0.5;}
       //speed * const(sacleToFOV,between[0,1])
     }
     heading_at_goal_rad_ = NAN;
