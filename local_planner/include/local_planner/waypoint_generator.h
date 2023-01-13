@@ -5,6 +5,7 @@
 #include "avoidance/common.h"
 #include "avoidance_output.h"
 
+
 #include <Eigen/Dense>
 
 #include <ros/time.h>
@@ -45,7 +46,8 @@ class WaypointGenerator : public usm::StateMachine<PlannerState> {
   Eigen::Vector3f desired_vel_ = Eigen::Vector3f(NAN, NAN, NAN);
   Eigen::Vector3f change_altitude_pos_ = Eigen::Vector3f(NAN, NAN, NAN);
   Eigen::Vector3f hover_position_ = Eigen::Vector3f(NAN, NAN, NAN);
-  Eigen::Quaternionf goal_orientation_ = Eigen::Quaternionf(NAN,NAN,NAN,NAN);
+  Eigen::Quaternionf goal_orientation_ = Eigen::Quaternionf(NAN,NAN,NAN,NAN); //jeff
+  pcl::PointCloud<pcl::PointXYZI> pointcloud_;
 
   float curr_yaw_rad_ = NAN;
   float curr_pitch_deg_ = NAN;
@@ -166,7 +168,8 @@ class WaypointGenerator : public usm::StateMachine<PlannerState> {
   void updateState(const Eigen::Vector3f& act_pose, const Eigen::Quaternionf& q, const Eigen::Vector3f& goal,
                    const Eigen::Vector3f& prev_goal, const Eigen::Vector3f& vel, bool stay, bool is_airborne,
                    const NavigationState& nav_state, const bool is_land_waypoint, const bool is_takeoff_waypoint,
-                   const Eigen::Vector3f& desired_vel, const Eigen::Quaternionf& goal_orientation);
+                   const Eigen::Vector3f& desired_vel, const Eigen::Quaternionf& goal_orientation,
+                   const pcl::PointCloud<pcl::PointXYZI>& pointcloud);
 
   /**
   * @brief set the responsiveness of the smoothing

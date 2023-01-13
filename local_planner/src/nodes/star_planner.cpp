@@ -137,7 +137,6 @@ void StarPlanner::buildLookAheadTree() {
   // build final tree
   int tree_end = max_depth_index;
   if (tree_end == 0 && tree_.size()>1){ //modify by jeff
-    ROS_WARN("No path generate, output last one");
     tree_end = tree_.size()-1;
   }
   path_node_positions_.clear();

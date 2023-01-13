@@ -227,7 +227,8 @@ void WaypointGenerator::updateState(const Eigen::Vector3f& act_pose, const Eigen
                                     const Eigen::Vector3f& goal, const Eigen::Vector3f& prev_goal,
                                     const Eigen::Vector3f& vel, bool stay, bool is_airborne,
                                     const NavigationState& nav_state, const bool is_land_waypoint,
-                                    const bool is_takeoff_waypoint, const Eigen::Vector3f& desired_vel,const Eigen::Quaternionf& goal_orientation) {
+                                    const bool is_takeoff_waypoint, const Eigen::Vector3f& desired_vel,
+                                    const Eigen::Quaternionf& goal_orientation, const pcl::PointCloud<pcl::PointXYZI>& pointcloud) {
   std::lock_guard<std::mutex> lock(running_mutex_);
   position_ = act_pose;
   velocity_ = vel;
@@ -241,7 +242,7 @@ void WaypointGenerator::updateState(const Eigen::Vector3f& act_pose, const Eigen
   desired_vel_ = desired_vel;
   loiter_ = stay;
   goal_orientation_ = goal_orientation;
-
+  pointcloud_ = pointcloud;
   is_airborne_ = is_airborne;
 
   // Initialize the smoothing point to current location, if it is undefined or
@@ -374,6 +375,15 @@ void WaypointGenerator::adaptSpeed(float dt) {
       p_pol_fcu.z -= RAD_TO_DEG * curr_yaw_rad_;
       wrapPolar(p_pol_fcu);
       speed_ *= scaleToFOV(fov_fcu_frame_, p_pol_fcu); //fov_fcu_frame, fov at that frame
+      for (auto xyz:pointcloud_){
+        if (abs(xyz.x - output_.goto_position[0])<0.3 || abs(xyz.y - output_.goto_position[1])<0.3){
+          ROS_WARN("obstacle near path, stop");
+          speed_ *= 0.3;
+          std::cout << abs(xyz.x - output_.goto_position[0]);
+          std::cout << abs(xyz.y - output_.goto_position[1])<<std::endl;          
+          break;
+        }
+      }
       //speed * const(sacleToFOV,between[0,1])
     }
     heading_at_goal_rad_ = NAN;
@@ -381,7 +391,6 @@ void WaypointGenerator::adaptSpeed(float dt) {
   //alpha ~0.1 default in laptop
   speed_ = alpha * speed_ + (1.f - alpha) * last_speed;
   speed_ = std::min(speed_, goal_dist);
-
   Eigen::Vector3f pose_to_wp = output_.goto_position - position_;
   if (pose_to_wp.norm() > 0.1f) pose_to_wp.normalize();
   pose_to_wp *= speed_; //apply adapt speed

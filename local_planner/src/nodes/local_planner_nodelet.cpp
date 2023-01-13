@@ -280,25 +280,12 @@ void LocalPlannerNodelet::setSystemStatus(MAV_STATE state) { avoidance_node_->se
 
 MAV_STATE LocalPlannerNodelet::getSystemStatus() { return avoidance_node_->getSystemStatus(); }
 
-bool LocalPlannerNodelet::determinedFrontSpace(const LocalPlanner& planner,Eigen::Vector3f nextWayPoint){
-// if newest_position front has pointcloud stop
-    for (const auto& xyz : planner.getPointcloud()){
-        if (xyz.x - nextWayPoint[0] < 0.3 && xyz.x - nextWayPoint[0] > -0.3 && 
-            xyz.y - nextWayPoint[1] < 0.3 && xyz.y - nextWayPoint[1] > -0.3 &&
-            xyz.z - nextWayPoint[2] < 0.2 && xyz.z - nextWayPoint[2] > -0.2 ){
-            return false;
-        }
-    }
-    return true;
-}
-// modify by Jeff, A Naive Check
-
 void LocalPlannerNodelet::calculateWaypoints(bool hover) {
   bool is_airborne = armed_ && (nav_state_ != NavigationState::none);
 
   wp_generator_->updateState(newest_position_, newest_orientation_, goal_position_, prev_goal_position_, velocity_,
                              hover, is_airborne, nav_state_, is_land_waypoint_, is_takeoff_waypoint_,
-                             desired_velocity_, goal_orientation_);
+                             desired_velocity_, goal_orientation_, local_planner_->getPointcloud());
   waypointResult result = wp_generator_->getWaypoints();
 
   // Eigen::Vector3f closest_pt = Eigen::Vector3f(NAN, NAN, NAN);
@@ -315,7 +302,7 @@ void LocalPlannerNodelet::calculateWaypoints(bool hover) {
   visualizer_.visualizeWaypoints(result.goto_position, result.adapted_goto_position, result.smoothed_goto_position);
   visualizer_.publishPaths(last_position_, newest_position_, last_waypoint_position_, newest_waypoint_position_,
                            last_adapted_waypoint_position_, newest_adapted_waypoint_position_);
-  // visualizer_.publishCurrentSetpoint(toTwist(result.linear_velocity_wp, result.angular_velocity_wp),
+  //visualizer_.publishCurrentSetpoint(toTwist(result.linear_velocity_wp, result.angular_velocity_wp),
   //                                    result.waypoint_type, newest_position_); modify by Jeff, don't think will use.
 
   //visualizer_.publishOfftrackPoints(closest_pt, deg60_pt);
@@ -323,29 +310,7 @@ void LocalPlannerNodelet::calculateWaypoints(bool hover) {
 
   // send waypoints to mavros
   //mavros_msgs::Trajectory obst_free_path = {};
-  if (LocalPlannerNodelet::determinedFrontSpace(*(local_planner_.get()),result.position_wp)){
-    // transformToTrajectory(obst_free_path, toPoseStamped(result.position_wp, result.orientation_wp),
-    //   toTwist(result.linear_velocity_wp, result.angular_velocity_wp));
-    mavros_pos_setpoint_pub_.publish(toPoseStamped(result.position_wp, result.orientation_wp));
-  }
-  else{
-    
-    ROS_WARN("obstacle ahead, HORVERING");
-    Eigen::Vector3f hover_wp;
-    hover_wp[0] = newest_position_[0];
-    hover_wp[1] = newest_position_[1];
-    hover_wp[2] = newest_position_[2]+0.3;
-    
-    // transformToTrajectory(obst_free_path, toPoseStamped(hover_wp, result.orientation_wp),
-    //       toTwist(Eigen::Vector3f::Zero(), result.angular_velocity_wp));
-    last_waypoint_position_ = hover_wp;
-    last_adapted_waypoint_position_ = hover_wp;
-    newest_waypoint_position_ = hover_wp;
-    newest_adapted_waypoint_position_ = hover_wp;
-    
-    mavros_pos_setpoint_pub_.publish(toPoseStamped(hover_wp, result.orientation_wp)); 
-  }
-  //mavros_obstacle_free_path_pub_.publish(obst_free_path);
+  mavros_pos_setpoint_pub_.publish(toPoseStamped(result.position_wp, result.orientation_wp));
 }
 
 void LocalPlannerNodelet::clickedPointCallback(const geometry_msgs::PointStamped& msg) {
