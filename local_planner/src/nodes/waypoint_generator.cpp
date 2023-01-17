@@ -342,7 +342,7 @@ void WaypointGenerator::nextSmoothYaw(float dt) {
 void WaypointGenerator::adaptSpeed(float dt) {
   // lowpass filter the speed to get smoother accelerations
   const float filter_time_constant = 0.9f;
-  const float alpha = dt / (filter_time_constant + dt);
+  //const float alpha = dt / (filter_time_constant + dt);
   const float last_speed = speed_;
 
   // at startup parameters are NAN (avoid propagating)
@@ -380,27 +380,24 @@ void WaypointGenerator::adaptSpeed(float dt) {
       PolarPoint collision_check = p_pol_fcu;
       p_pol_fcu.e -= curr_pitch_deg_;
       p_pol_fcu.z -= RAD_TO_DEG * curr_yaw_rad_;
-      const float alpha = 0.3;
       wrapPolar(p_pol_fcu);
-      Eigen::Vector3f right_position_ = Eigen::Vector3f(position_[0], position_[1]-0.3, position_[2]);
-      Eigen::Vector3f left_position_ = Eigen::Vector3f(position_[0], position_[1]+0.3, position_[2]);
+      Eigen::Vector3f right_position_ = Eigen::Vector3f(position_[0]+0.3*sin(curr_yaw_rad_), position_[1]-0.3*cos(curr_yaw_rad_), position_[2]);
+      Eigen::Vector3f left_position_ = Eigen::Vector3f(position_[0]-0.3*sin(curr_yaw_rad_), position_[1]+0.3*cos(curr_yaw_rad_), position_[2]);
       generateNewHistogram(right_histogram, pointcloud_, right_position_);
       generateNewHistogram(left_histogram, pointcloud_, left_position_);
       generateNewHistogram(mid_histogram, pointcloud_, position_);
       Eigen::Vector2i collision_index = polarToHistogramIndex(collision_check, ALPHA_RES);
       speed_ *= scaleToFOV(fov_fcu_frame_, p_pol_fcu); //fov_fcu_frame, fov at that frame
-      if ((mid_histogram.get_dist(collision_index.y(), collision_index.x()) < 0.8 && mid_histogram.get_dist(collision_index.y(), collision_index.x()) != 0) ||
-          (right_histogram.get_dist(collision_index.y(), collision_index.x()) < 0.8 && right_histogram.get_dist(collision_index.y(), collision_index.x()) != 0) ||
-          (left_histogram.get_dist(collision_index.y(), collision_index.x()) < 0.8 && left_histogram.get_dist(collision_index.y(), collision_index.x()) != 0)){
+      if ((mid_histogram.get_dist(collision_index.y(), collision_index.x()) < 1 && mid_histogram.get_dist(collision_index.y(), collision_index.x()) != 0) ||
+          (right_histogram.get_dist(collision_index.y(), collision_index.x()) < 1 && right_histogram.get_dist(collision_index.y(), collision_index.x()) != 0) ||
+          (left_histogram.get_dist(collision_index.y(), collision_index.x()) < 1 && left_histogram.get_dist(collision_index.y(), collision_index.x()) != 0)){
         speed_ *= 0.0 ;
-        const float alpha = 0.5;
-        std::cout << "collision ahead " <<std::endl;
       }
       //speed * const(sacleToFOV,between[0,1])
     }
     heading_at_goal_rad_ = NAN;
   }
-  
+  const float alpha = 1.0;
   //alpha ~0.1 default in laptop
   speed_ = alpha * speed_ + (1.f - alpha) * last_speed;
   speed_ = std::min(speed_, goal_dist);
@@ -468,7 +465,7 @@ bool WaypointGenerator::isAltitudeChange() {
   const bool need_to_change_altitude = offboard_goal_altitude_not_reached || auto_takeoff || auto_land_;
   if (need_to_change_altitude) {
     if (nav_state_ == NavigationState::offboard) {
-      if (position_.z() >= goal_.z()) {
+      if (position_.z() >= goal_.z()-0.1) {
         reach_altitude_offboard_ = true;
         return false;
       }
