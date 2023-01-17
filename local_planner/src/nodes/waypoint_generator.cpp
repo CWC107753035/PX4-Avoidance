@@ -370,26 +370,37 @@ void WaypointGenerator::adaptSpeed(float dt) {
   } else {
     // Scale the speed by a factor that is 0 if the waypoint is outside the FOV
     if (getState() != PlannerState::ALTITUDE_CHANGE) {
+      Histogram right_histogram(ALPHA_RES);
+      Histogram mid_histogram(ALPHA_RES);
+      Histogram left_histogram(ALPHA_RES);
+      right_histogram.setZero();
+      mid_histogram.setZero();
+      left_histogram.setZero();
       PolarPoint p_pol_fcu = cartesianToPolarFCU(output_.goto_position, position_);
+      PolarPoint collision_check = p_pol_fcu;
       p_pol_fcu.e -= curr_pitch_deg_;
       p_pol_fcu.z -= RAD_TO_DEG * curr_yaw_rad_;
+      const float alpha = 0.3;
       wrapPolar(p_pol_fcu);
+      Eigen::Vector3f right_position_ = Eigen::Vector3f(position_[0], position_[1]-0.3, position_[2]);
+      Eigen::Vector3f left_position_ = Eigen::Vector3f(position_[0], position_[1]+0.3, position_[2]);
+      generateNewHistogram(right_histogram, pointcloud_, right_position_);
+      generateNewHistogram(left_histogram, pointcloud_, left_position_);
+      generateNewHistogram(mid_histogram, pointcloud_, position_);
+      Eigen::Vector2i collision_index = polarToHistogramIndex(collision_check, ALPHA_RES);
       speed_ *= scaleToFOV(fov_fcu_frame_, p_pol_fcu); //fov_fcu_frame, fov at that frame
-      bool obastcale = false;
-      for (auto xyz:pointcloud_){
-        if (abs(xyz.x - output_.goto_position[0])<1 && abs(xyz.y - output_.goto_position[1])<1){
-          obastcale = true;        
-          if (abs(xyz.x - output_.goto_position[0])<0.5 && abs(xyz.y - output_.goto_position[1])<0.5){
-            speed_ *= 0;
-            break;
-          }
-        }
+      if ((mid_histogram.get_dist(collision_index.y(), collision_index.x()) < 0.8 && mid_histogram.get_dist(collision_index.y(), collision_index.x()) != 0) ||
+          (right_histogram.get_dist(collision_index.y(), collision_index.x()) < 0.8 && right_histogram.get_dist(collision_index.y(), collision_index.x()) != 0) ||
+          (left_histogram.get_dist(collision_index.y(), collision_index.x()) < 0.8 && left_histogram.get_dist(collision_index.y(), collision_index.x()) != 0)){
+        speed_ *= 0.0 ;
+        const float alpha = 0.5;
+        std::cout << "collision ahead " <<std::endl;
       }
-      if (obastcale == true){speed_*=0.5;}
       //speed * const(sacleToFOV,between[0,1])
     }
     heading_at_goal_rad_ = NAN;
   }
+  
   //alpha ~0.1 default in laptop
   speed_ = alpha * speed_ + (1.f - alpha) * last_speed;
   speed_ = std::min(speed_, goal_dist);
