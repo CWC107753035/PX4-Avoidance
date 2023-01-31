@@ -342,8 +342,9 @@ void WaypointGenerator::nextSmoothYaw(float dt) {
 void WaypointGenerator::adaptSpeed(float dt) {
   // lowpass filter the speed to get smoother accelerations
   const float filter_time_constant = 0.9f;
-  //const float alpha = dt / (filter_time_constant + dt);
+  const float alpha = 0.5; //dt / (filter_time_constant + dt);
   const float last_speed = speed_;
+  float uav_size = 0.4;
 
   // at startup parameters are NAN (avoid propagating)
   if (std::isfinite(planner_info_.cruise_velocity)) {
@@ -370,34 +371,17 @@ void WaypointGenerator::adaptSpeed(float dt) {
   } else {
     // Scale the speed by a factor that is 0 if the waypoint is outside the FOV
     if (getState() != PlannerState::ALTITUDE_CHANGE) {
-      Histogram right_histogram(ALPHA_RES);
-      Histogram mid_histogram(ALPHA_RES);
-      Histogram left_histogram(ALPHA_RES);
-      right_histogram.setZero();
-      mid_histogram.setZero();
-      left_histogram.setZero();
       PolarPoint p_pol_fcu = cartesianToPolarFCU(output_.goto_position, position_);
       PolarPoint collision_check = p_pol_fcu;
       p_pol_fcu.e -= curr_pitch_deg_;
       p_pol_fcu.z -= RAD_TO_DEG * curr_yaw_rad_;
       wrapPolar(p_pol_fcu);
-      Eigen::Vector3f right_position_ = Eigen::Vector3f(position_[0]+0.3*sin(curr_yaw_rad_), position_[1]-0.3*cos(curr_yaw_rad_), position_[2]);
-      Eigen::Vector3f left_position_ = Eigen::Vector3f(position_[0]-0.3*sin(curr_yaw_rad_), position_[1]+0.3*cos(curr_yaw_rad_), position_[2]);
-      generateNewHistogram(right_histogram, pointcloud_, right_position_);
-      generateNewHistogram(left_histogram, pointcloud_, left_position_);
-      generateNewHistogram(mid_histogram, pointcloud_, position_);
-      Eigen::Vector2i collision_index = polarToHistogramIndex(collision_check, ALPHA_RES);
       speed_ *= scaleToFOV(fov_fcu_frame_, p_pol_fcu); //fov_fcu_frame, fov at that frame
-      if ((mid_histogram.get_dist(collision_index.y(), collision_index.x()) < 1 && mid_histogram.get_dist(collision_index.y(), collision_index.x()) != 0) ||
-          (right_histogram.get_dist(collision_index.y(), collision_index.x()) < 1 && right_histogram.get_dist(collision_index.y(), collision_index.x()) != 0) ||
-          (left_histogram.get_dist(collision_index.y(), collision_index.x()) < 1 && left_histogram.get_dist(collision_index.y(), collision_index.x()) != 0)){
-        speed_ *= 0.0 ;
-      }
       //speed * const(sacleToFOV,between[0,1])
+      
     }
     heading_at_goal_rad_ = NAN;
   }
-  const float alpha = 1.0;
   //alpha ~0.1 default in laptop
   speed_ = alpha * speed_ + (1.f - alpha) * last_speed;
   speed_ = std::min(speed_, goal_dist);
@@ -406,6 +390,30 @@ void WaypointGenerator::adaptSpeed(float dt) {
   pose_to_wp *= speed_; //apply adapt speed
 
   output_.adapted_goto_position = position_ + pose_to_wp;
+  PolarPoint p_pol_fcu = cartesianToPolarFCU(output_.adapted_goto_position, position_);
+  float sin_ = sin(p_pol_fcu.z * DEG_TO_RAD);
+  float cos_ = cos(p_pol_fcu.z * DEG_TO_RAD);
+  Eigen::Vector2f uav_lefttop = Eigen::Vector2f(position_[0]-uav_size*sin_, position_[1]+uav_size*cos_);
+  Eigen::Vector2f uav_righttop = Eigen::Vector2f(position_[0]+uav_size*sin_, position_[1]-uav_size*cos_);
+  Eigen::Vector2f goto_righttop = Eigen::Vector2f(output_.adapted_goto_position[0]+uav_size*sin_, output_.adapted_goto_position[1]-uav_size*cos_);
+  float dotwidth = dot(uav_righttop[0]-uav_lefttop[0], uav_righttop[1]-uav_lefttop[1],uav_righttop[0]-uav_lefttop[0], uav_righttop[1]-uav_lefttop[1]);
+  float dotlong = dot(goto_righttop[0]-uav_righttop[0], goto_righttop[1]-uav_righttop[1], goto_righttop[0]-uav_righttop[0], goto_righttop[1]-uav_righttop[1]);
+  for (auto xyz:pointcloud_){
+    float dotA = dot(uav_righttop[0]-uav_lefttop[0], uav_righttop[1]-uav_lefttop[1], xyz.x-uav_lefttop[0], xyz.y-uav_lefttop[1]);
+    float dotB = dot(goto_righttop[0]-uav_righttop[0], goto_righttop[1]-uav_righttop[1], xyz.x-uav_righttop[0], xyz.y-uav_righttop[1]);
+    if (0.f <= dotA && dotA <= dotwidth && 0.f <= dotB && dotB <= dotlong){
+        if (abs(xyz.z - output_.adapted_goto_position[2]) < 0.3){
+          if (abs(xyz.x - position_[0]) + abs(xyz.y - position_[1]) < 1){
+            output_.adapted_goto_position[0] = position_[0] - 0.2f*cos(curr_yaw_rad_);
+            output_.adapted_goto_position[1] = position_[1] - 0.2f*sin(curr_yaw_rad_);}
+          else{
+            output_.adapted_goto_position[0] = position_[0];
+            output_.adapted_goto_position[1] = position_[1];}
+          ROS_WARN("Obstacle in up coming path");
+          break;
+        }
+      }
+  }
 
   ROS_INFO("[WG] Speed adapted WP: [%f %f %f].", output_.adapted_goto_position.x(), output_.adapted_goto_position.y(),
            output_.adapted_goto_position.z());

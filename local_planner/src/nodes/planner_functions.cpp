@@ -360,7 +360,7 @@ std::pair<float, float> costFunction(const PolarPoint& candidate_polar, float ob
   const float d = cost_params.obstacle_cost_param - obstacle_distance;
   float distance_cost = obstacle_distance > 0 ? 5000.0f * (1 + d / sqrt(1 + d * d)) : 0.0f;
   if ( obstacle_distance < 1.0 && obstacle_distance != 0){
-    distance_cost += 1000*(1.0/obstacle_distance);
+    distance_cost += 2000*(1.0/obstacle_distance);
   }
 
   return std::pair<float, float>(distance_cost, velocity_cost + yaw_cost + yaw_to_line_cost + pitch_cost);

@@ -227,7 +227,7 @@ avoidanceOutput LocalPlanner::getAvoidanceOutput() const {
 
   float speed = std::isfinite(mission_item_speed_) ? mission_item_speed_ : px4_.param_mpc_xy_cruise;
   float max_speed = std::min(speed, limited_speed);
-
+  std::cout << "speed: " << speed << "limited_speed: "<< limited_speed<< std::endl;
   out.cruise_velocity = max_speed;
   out.last_path_time = last_path_time_;
 
