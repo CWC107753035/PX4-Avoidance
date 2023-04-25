@@ -44,6 +44,7 @@ class LocalPlanner {
   float max_point_age_s_ = 10;
   float yaw_fcu_frame_deg_ = 0.0f;
   float pitch_fcu_frame_deg_ = 0.0f;
+  float go_direct_param_ = 1.0f;
 
   std::vector<FOV> fov_fcu_frame_;
 

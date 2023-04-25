@@ -258,6 +258,7 @@ class DEFAULT
         if("children_per_node_"==(*_i)->name){children_per_node_ = boost::any_cast<int>(val);}
         if("n_expanded_nodes_"==(*_i)->name){n_expanded_nodes_ = boost::any_cast<int>(val);}
         if("tree_node_distance_"==(*_i)->name){tree_node_distance_ = boost::any_cast<double>(val);}
+        if("go_direct_param_"==(*_i)->name){go_direct_param_ = boost::any_cast<double>(val);}
       }
     }
 
@@ -280,6 +281,7 @@ double smoothing_margin_degrees_;
 int children_per_node_;
 int n_expanded_nodes_;
 double tree_node_distance_;
+double go_direct_param_;
 
     bool state;
     std::string name;
@@ -328,7 +330,7 @@ double tree_node_distance_;
 //#line 291 "/opt/ros/noetic/lib/python3/dist-packages/dynamic_reconfigure/parameter_generator_catkin.py"
       double tree_node_distance_;
 //#line 231 "/opt/ros/noetic/share/dynamic_reconfigure/cmake/../templates/ConfigType.h.template"
-
+      double go_direct_param_;
     bool __fromMessage__(dynamic_reconfigure::Config &msg)
     {
       const std::vector<AbstractParamDescriptionConstPtr> &__param_descriptions__ = __getParamDescriptions__();
@@ -657,6 +659,16 @@ LocalPlannerNodeConfig::GroupDescription<LocalPlannerNodeConfig::DEFAULT, LocalP
       __param_descriptions__.push_back(LocalPlannerNodeConfig::AbstractParamDescriptionConstPtr(new LocalPlannerNodeConfig::ParamDescription<double>("tree_node_distance_", "double", 0, "Distance between nodes", "", &LocalPlannerNodeConfig::tree_node_distance_)));
 //#line 246 "/opt/ros/noetic/lib/python3/dist-packages/dynamic_reconfigure/parameter_generator_catkin.py"
       Default.convertParams();
+      __min__.go_direct_param_ = 0.0;
+//#line 291 "/opt/ros/noetic/lib/python3/dist-packages/dynamic_reconfigure/parameter_generator_catkin.py"
+      __max__.go_direct_param_ = 2.0;
+//#line 291 "/opt/ros/noetic/lib/python3/dist-packages/dynamic_reconfigure/parameter_generator_catkin.py"
+      __default__.go_direct_param_ = 1.0;
+      Default.abstract_parameters.push_back(LocalPlannerNodeConfig::AbstractParamDescriptionConstPtr(new LocalPlannerNodeConfig::ParamDescription<double>("go_direct_param_", "double", 0, "Goal_distance smaller under this value will go direct", "", &LocalPlannerNodeConfig::go_direct_param_)));
+//#line 291 "/opt/ros/noetic/lib/python3/dist-packages/dynamic_reconfigure/parameter_generator_catkin.py"
+      __param_descriptions__.push_back(LocalPlannerNodeConfig::AbstractParamDescriptionConstPtr(new LocalPlannerNodeConfig::ParamDescription<double>("go_direct_param_", "double", 0, "Goal_distance smaller under this value will go direct", "", &LocalPlannerNodeConfig::go_direct_param_)));
+//#line 291 "/opt/ros/noetic/lib/python3/dist-packages/dynamic_reconfigure/parameter_generator_catkin.py"
+
 //#line 246 "/opt/ros/noetic/lib/python3/dist-packages/dynamic_reconfigure/parameter_generator_catkin.py"
       __group_descriptions__.push_back(LocalPlannerNodeConfig::AbstractGroupDescriptionConstPtr(new LocalPlannerNodeConfig::GroupDescription<LocalPlannerNodeConfig::DEFAULT, LocalPlannerNodeConfig>(Default)));
 //#line 369 "/opt/ros/noetic/share/dynamic_reconfigure/cmake/../templates/ConfigType.h.template"

@@ -36,6 +36,7 @@ void LocalPlanner::dynamicReconfigureSetParams(avoidance::LocalPlannerNodeConfig
   children_per_node_ = config.children_per_node_;
   n_expanded_nodes_ = config.n_expanded_nodes_;
   smoothing_margin_degrees_ = static_cast<float>(config.smoothing_margin_degrees_);
+  go_direct_param_ = config.go_direct_param_;
 
   if (getGoal().z() != config.goal_z_param) {
     auto goal = getGoal();
@@ -189,12 +190,12 @@ void LocalPlanner::setDefaultPx4Parameters() {
   px4_.param_mpc_auto_mode = 1;
   px4_.param_mpc_jerk_min = 8.f;
   px4_.param_mpc_jerk_max = 20.f;
-  px4_.param_mpc_acc_up_max = 10.f;
+  px4_.param_mpc_acc_up_max = 4.f;
   px4_.param_mpc_z_vel_max_up = 3.f;
-  px4_.param_mpc_acc_down_max = 10.f;
+  px4_.param_mpc_acc_down_max = 4.f;
   px4_.param_mpc_z_vel_max_dn = 1.f;
   px4_.param_mpc_acc_hor = 5.f;
-  px4_.param_mpc_xy_cruise = 3.f;
+  px4_.param_mpc_xy_cruise = 10.f;
   px4_.param_mpc_tko_speed = 1.f;
   px4_.param_mpc_land_speed = 0.7f;
   px4_.param_cp_dist = 4.f;
@@ -222,12 +223,10 @@ avoidanceOutput LocalPlanner::getAvoidanceOutput() const {
   float accel_ramp_time = px4_.param_mpc_acc_hor / px4_.param_mpc_jerk_max;
   float a = 1;
   float b = 2 * px4_.param_mpc_acc_hor * accel_ramp_time;
-  float c = 2 * -px4_.param_mpc_acc_hor * max_sensor_range_;
+  float c = 2 * -px4_.param_mpc_acc_hor * abs(max_sensor_range_-min_sensor_range_); //jeff max-min sensor range = actuall range
   float limited_speed = (-b + std::sqrt(b * b - 4 * a * c)) / (2 * a);
-
   float speed = std::isfinite(mission_item_speed_) ? mission_item_speed_ : px4_.param_mpc_xy_cruise;
   float max_speed = std::min(speed, limited_speed);
-  std::cout << "speed: " << speed << "limited_speed: "<< limited_speed<< std::endl;
   out.cruise_velocity = max_speed;
   out.last_path_time = last_path_time_;
 

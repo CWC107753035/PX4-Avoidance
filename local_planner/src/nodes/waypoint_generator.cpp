@@ -355,7 +355,8 @@ void WaypointGenerator::adaptSpeed(float dt) {
 
   // If the goal is so close, that the speed-adapted way point would overreach
   float goal_dist = (goal_ - position_).norm();
-  if (goal_dist < 1.f) {
+  std::cout << go_direct_param_ <<std::endl;
+  if (goal_dist < go_direct_param_) {
     output_.goto_position = goal_;
     speed_ = goal_dist;
     // First time we reach this goal, remember the heading
@@ -395,21 +396,21 @@ void WaypointGenerator::adaptSpeed(float dt) {
   float cos_ = cos(p_pol_fcu.z * DEG_TO_RAD);
   Eigen::Vector2f uav_lefttop = Eigen::Vector2f(position_[0]-uav_size*sin_, position_[1]+uav_size*cos_);
   Eigen::Vector2f uav_righttop = Eigen::Vector2f(position_[0]+uav_size*sin_, position_[1]-uav_size*cos_);
-  Eigen::Vector2f goto_righttop = Eigen::Vector2f(output_.adapted_goto_position[0]+uav_size*sin_, output_.adapted_goto_position[1]-uav_size*cos_);
+  Eigen::Vector2f goto_righttop = Eigen::Vector2f((output_.adapted_goto_position[0]+0.2*cos_)+uav_size*sin_, (output_.adapted_goto_position[1]+0.2*sin_)-uav_size*cos_);
   float dotwidth = dot(uav_righttop[0]-uav_lefttop[0], uav_righttop[1]-uav_lefttop[1],uav_righttop[0]-uav_lefttop[0], uav_righttop[1]-uav_lefttop[1]);
   float dotlong = dot(goto_righttop[0]-uav_righttop[0], goto_righttop[1]-uav_righttop[1], goto_righttop[0]-uav_righttop[0], goto_righttop[1]-uav_righttop[1]);
   for (auto xyz:pointcloud_){
     float dotA = dot(uav_righttop[0]-uav_lefttop[0], uav_righttop[1]-uav_lefttop[1], xyz.x-uav_lefttop[0], xyz.y-uav_lefttop[1]);
     float dotB = dot(goto_righttop[0]-uav_righttop[0], goto_righttop[1]-uav_righttop[1], xyz.x-uav_righttop[0], xyz.y-uav_righttop[1]);
     if (0.f <= dotA && dotA <= dotwidth && 0.f <= dotB && dotB <= dotlong){
-        if (abs(xyz.z - output_.adapted_goto_position[2]) < 0.3){
+        if ((position_[2]-0.3)<=xyz.z && xyz.z <= (output_.adapted_goto_position[2]+0.3)){
           if (abs(xyz.x - position_[0]) + abs(xyz.y - position_[1]) < 1){
-            output_.adapted_goto_position[0] = position_[0] - 0.2f*cos(curr_yaw_rad_);
-            output_.adapted_goto_position[1] = position_[1] - 0.2f*sin(curr_yaw_rad_);}
+            output_.adapted_goto_position[0] = position_[0] - 0.5f*cos(curr_yaw_rad_);
+            output_.adapted_goto_position[1] = position_[1] - 0.5f*sin(curr_yaw_rad_);
+            break;}
           else{
             output_.adapted_goto_position[0] = position_[0];
             output_.adapted_goto_position[1] = position_[1];}
-          ROS_WARN("Obstacle in up coming path");
           break;
         }
       }

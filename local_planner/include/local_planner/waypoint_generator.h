@@ -56,6 +56,7 @@ class WaypointGenerator : public usm::StateMachine<PlannerState> {
 
   float smoothing_speed_xy_{10.f};
   float smoothing_speed_z_{3.0f};
+  float go_direct_param_{1.0f};
 
   bool is_airborne_ = false;
   bool is_land_waypoint_{false};
@@ -178,9 +179,10 @@ class WaypointGenerator : public usm::StateMachine<PlannerState> {
   * @param[in] smoothing_speed_xy, set to 0 to disable
   * @param[in] smoothing_speed_z, set to 0 to disable
   **/
-  void setSmoothingSpeed(float smoothing_speed_xy, float smoothing_speed_z) {
+  void setSmoothingSpeed(float smoothing_speed_xy, float smoothing_speed_z,float go_direct_param) {
     smoothing_speed_xy_ = smoothing_speed_xy;
     smoothing_speed_z_ = smoothing_speed_z;
+    go_direct_param_ = go_direct_param;
   }
 
   /**
