@@ -1,0 +1,2 @@
+- setup-file:
+    local-name: /home/jeff/catkin_px4_avoidance/src/PX4-Avoidance/local_planner/devel/setup.sh
